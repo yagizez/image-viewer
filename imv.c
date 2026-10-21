@@ -9,7 +9,6 @@
 #include <SDL2/SDL_video.h>
 
 // TODO:
-// - Add comment support for PPM files
 // - Window resizing
 // - Integer zooming
 
@@ -84,17 +83,23 @@ int main(int argc, char *argv[])
             int max_saturation;
 
             fread(magic_num, 1, sizeof(magic_num), pimg); // Get magic number
-            fgetc(pimg); // Skip trailing '\n'
+            fgetc(pimg); // Skip trailing '\n' or space
+
+            // Skip comment(s)
+            int ch;
+            while ((ch = fgetc(pimg)) == '#')
+                while (fgetc(pimg) != '\n');
+            ungetc(ch, pimg);
 
             fscanf(pimg, "%d %d", &img_width, &img_height); // Get image width and height
-            fgetc(pimg); // Skip trailing '\n'
+            fgetc(pimg); // Skip trailing '\n' or space
 
             fscanf(pimg, "%d", &max_saturation); // Get max saturation value
             fgetc(pimg); // Skip trailing '\n'
 
             // Create window
             char win_title[96];
-            snprintf(win_title, sizeof(win_title), "[imv-ppm] Viewing PPM(Plain) image - %dx%d", img_width, img_height);
+            snprintf(win_title, sizeof(win_title), "Viewing plain PPM image - %dx%d", img_width, img_height);
             pwin = SDL_CreateWindow(win_title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, img_width, img_height, 0);
 
             // Draw image to window
@@ -122,17 +127,23 @@ int main(int argc, char *argv[])
             int max_saturation;
 
             fread(magic_num, 1, sizeof(magic_num), pimg); // Get magic number
-            fgetc(pimg); // Skip trailing '\n'
+            fgetc(pimg); // Skip trailing '\n' or space
+
+            // Skip comment(s)
+            int ch;
+            while ((ch = fgetc(pimg)) == '#')
+                while (fgetc(pimg) != '\n');
+            ungetc(ch, pimg);
 
             fscanf(pimg, "%d %d", &img_width, &img_height); // Get image width and height
-            fgetc(pimg); // Skip trailing '\n'
+            fgetc(pimg); // Skip trailing '\n' or space
 
             fscanf(pimg, "%d", &max_saturation); // Get max saturation value
             fgetc(pimg); // Skip trailing '\n'
 
             // Create window
             char win_title[96];
-            snprintf(win_title, sizeof(win_title), "[imv-ppm] Viewing PPM(Raw) image - %dx%d", img_width, img_height);
+            snprintf(win_title, sizeof(win_title), "Viewing raw PPM image - %dx%d", img_width, img_height);
             pwin = SDL_CreateWindow(win_title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, img_width, img_height, 0);
 
             // Draw image to window
