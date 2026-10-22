@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <string.h>
+#include <SDL2/SDL.h>
 #include <SDL2/SDL_events.h>
+#include <SDL2/SDL_hints.h>
 #include <SDL2/SDL_pixels.h>
 #include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_stdinc.h>
@@ -9,7 +11,6 @@
 #include <SDL2/SDL_video.h>
 
 // TODO:
-// - Window resizing
 // - Integer zooming
 
 // "Plain" PPM formatted images consist of the following bytes:
@@ -27,12 +28,39 @@
 // 4. Max saturation value (at most 255), followed by a newline
 // 5. The raster is represented by 3 bytes in order of red, green and blue
 
+void render_window(SDL_Window *window, SDL_Surface *image)
+{
+    int win_w, win_h;
+    SDL_GetWindowSize(window, &win_w, &win_h); // Get window size
+    SDL_Surface *pwinsurf = SDL_GetWindowSurface(window); // Get window surface
+
+    SDL_Rect display_rect;
+    display_rect.x = (win_w - image->w) / 2;
+    display_rect.y = (win_h - image->h) / 2;
+    display_rect.w = image->w;
+    display_rect.h = image->h;
+    SDL_FillRect(pwinsurf, NULL, SDL_MapRGB(pwinsurf->format, 0, 0, 0)); // Fill window surface with black
+    SDL_BlitScaled(image, NULL, pwinsurf, &display_rect); // Fill middle of window surface with image
+
+    SDL_UpdateWindowSurface(window);
+}
+
 int main(int argc, char *argv[])
 {
     // Check arguments
     if (argc != 2)
     {
         fprintf(stderr, "Missing filename parameter\n");
+        return 1;
+    }
+
+    // Run on Xwayland
+    SDL_SetHint(SDL_HINT_VIDEODRIVER, "x11");
+
+    // Initialize SDL2 subsystem(s)
+    if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0)
+    {
+        fprintf(stderr, "SDL_InitSubSystem failed: %s\n", SDL_GetError());
         return 1;
     }
 
@@ -43,9 +71,6 @@ int main(int argc, char *argv[])
         perror("Can't open image file");
         return 1;
     }
-
-    // Declare a window
-    SDL_Window *pwin;
 
     // Define supported image formats
     typedef enum ImageFormat {
@@ -72,6 +97,9 @@ int main(int argc, char *argv[])
         fclose(pimg);
         return 1;
     }
+
+    SDL_Window *pwin; // Declare pointer to window
+    SDL_Surface *psurf; // Declare pointer to surface that will store the image
 
     switch (imgf)
     {
@@ -100,10 +128,12 @@ int main(int argc, char *argv[])
             // Create window
             char win_title[96];
             snprintf(win_title, sizeof(win_title), "Viewing plain PPM image - %dx%d", img_width, img_height);
-            pwin = SDL_CreateWindow(win_title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, img_width, img_height, 0);
+            pwin = SDL_CreateWindow(win_title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, img_width, img_height, SDL_WINDOW_RESIZABLE);
 
-            // Draw image to window
-            SDL_Surface *psurf = SDL_GetWindowSurface(pwin);
+            // Create surface
+            psurf = SDL_CreateRGBSurfaceWithFormat(0, img_width, img_height, 32, SDL_PIXELFORMAT_RGB888);
+
+            // Fill surface with image
             for (int row = 0; row < img_height; row++)
             {
                 for (int col = 0; col < img_width; col++)
@@ -115,7 +145,8 @@ int main(int argc, char *argv[])
                     SDL_FillRect(psurf, &pixel, color);
                 }
             }
-            SDL_UpdateWindowSurface(pwin);
+
+            render_window(pwin, psurf);
 
             break;
         }
@@ -144,10 +175,12 @@ int main(int argc, char *argv[])
             // Create window
             char win_title[96];
             snprintf(win_title, sizeof(win_title), "Viewing raw PPM image - %dx%d", img_width, img_height);
-            pwin = SDL_CreateWindow(win_title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, img_width, img_height, 0);
+            pwin = SDL_CreateWindow(win_title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, img_width, img_height, SDL_WINDOW_RESIZABLE);
 
-            // Draw image to window
-            SDL_Surface *psurf = SDL_GetWindowSurface(pwin);
+            // Create surface
+            psurf = SDL_CreateRGBSurfaceWithFormat(0, img_width, img_height, 32, SDL_PIXELFORMAT_RGB888);
+
+            // Fill surface with image
             for (int row = 0; row < img_height; row++)
             {
                 for (int col = 0; col < img_width; col++)
@@ -158,28 +191,31 @@ int main(int argc, char *argv[])
                     SDL_FillRect(psurf, &pixel, color);
                 }
             }
-            SDL_UpdateWindowSurface(pwin);
+
+            render_window(pwin, psurf);
 
             break;
         }
     }
 
-    fclose(pimg); // Close image file
+    fclose(pimg);
 
     // Program event loop
-    int program_is_running = 1;
-    while (program_is_running)
+    SDL_Event event;
+    while (SDL_WaitEvent(&event))
     {
-        SDL_Event event;
-        while (SDL_PollEvent(&event))
-        {
-            if (event.type == SDL_QUIT)
-                program_is_running = 0;
-        }
-        SDL_Delay(100);
+        if (event.type == SDL_QUIT) break; // Check for quit request
+
+        // If window size has changed or window has been exposed rerender window
+        if (event.type == SDL_WINDOWEVENT && (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED || event.window.event == SDL_WINDOWEVENT_EXPOSED))
+            render_window(pwin, psurf);
     }
 
-    SDL_DestroyWindow(pwin); // Destroy window
+    SDL_FreeSurface(psurf);
+    SDL_DestroyWindow(pwin);
+
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
+    SDL_Quit();
 
     return 0;
 }
